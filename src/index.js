@@ -5,6 +5,7 @@ const socketio = require('socket.io')
 const Filter = require('bad-words')
 const { generateMessage, generateLocationMessage } = require('./utils/messages')
 const { addUser, removeUser, getUser, getUsersInRoom } = require('./utils/users')
+const { addRoom, removeRoom, rooms } = require('./utils/rooms')
 const { captureRejectionSymbol } = require('events')
 
 
@@ -18,6 +19,8 @@ app.use(express.static(publicDirectoryPath))
 
 io.on('connection', (socket) => {
     console.log('New WebSocket connection')
+
+    io.emit('rooms', rooms)
 
     socket.on('join', (options, callback) => {
         const { error, user } = addUser({ id: socket.id, ...options })
@@ -34,6 +37,8 @@ io.on('connection', (socket) => {
             room: user.room,
             users: getUsersInRoom(user.room)
         })
+
+        addRoom(options.room)
 
         callback()
     })
@@ -52,13 +57,22 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         const user = removeUser(socket.id)
+        
         if (user) {
             io.to(user.room).emit('message', generateMessage('Admin', `${user.username} has left!`))
             io.to(user.room).emit('roomData', {
                 room: user.room,
                 users: getUsersInRoom(user.room)
             })
+
+             
+            if (getUsersInRoom(user.room).length === 0) {
+                console.log('Sucesss')
+                removeRoom(user.room)
+            }
         }
+
+        
     })
 
     socket.on('sendLocation', (coords, callback) => {
